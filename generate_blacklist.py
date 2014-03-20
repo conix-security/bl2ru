@@ -1,6 +1,7 @@
 #!/usr/bin/python
-# Copyright 2013 Conix Security, Adrien Chevalier
+# Copyright 2013 Conix Security
 # adrien.chevalier@conix.fr
+# alexandre.deloup@conix.fr
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,146 +17,140 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import socket
 import os
+import sys
+import os.path
 
-print "EDIT THIS FILE PLZ"
-exit(1)
+#############################################
+#       Load configuration
+try:
+    import conf
+except ImportError:
+    print >> sys.stderr, "[!] Error importing conf.py."
+    print >> sys.stderr, "[ ] You can create your configuration file from the default one:"
+    print >> sys.stderr, "[ ] $ cp conf.py.sample conf.py && vim conf.py"
+    sys.exit(1)
 
+try:
+    OUT_FILE = conf.OUT_FILE
+except:
+    OUT_FILE = "blacklisted-domains.rules"
+try:
+    IN_FILE = conf.IN_FILE
+except:
+    IN_FILE = "blacklist.txt"
+try:
+    SID_LOG_FILE = conf.SID_LOG_FILE
+except:
+    SID_LOG_FILE = ".sid_log_file"
+try:
+    SSH_DEPLOY = conf.SSH_DEPLOY
+except:
+    SSH_DEPLOY = False
+try:
+    SSH_SERVERS = conf.SSH_SERVERS
+except:
+    SSH_SERVERS = ()
 
-#########################################################################
-# parameters
-out_file = "blacklisted-domains.rule"       # rules file
-in_file = "blacklist.txt"                   # blacklist file
-sid = 1510000                               # default SID
-ssh_deploy = True                           # deploy through SSH, False to disable ?
-
-# SSH servers (ssh deployment)
-ssh_serverz = []
-# serverX = [HOST,PORT,USERNAME,PASSWORD,REMOTE_PATH]
-
-# SSH servers examples:
-# server1 = ["127.0.0.1",22,"null","PASSWORD","/home/null/"]
-# ssh_serverz.append(server1)
-# server2 = ["127.0.0.1",22,"null","PASSWORD","/tmp/"]
-# ssh_serverz.append(server2)
-
-#########################################################################
-
-
-if ssh_deploy:
+#############################################
+#       SSH Deployement requirement
+if SSH_DEPLOY:
     try:
         import paramiko
-        ssh_deploy = True
     except ImportError:
-        print "[!] Paramiko lib not found, install with <pip install paramiko>"
-        print "\t[-] Disabling SSH rules deployment"
-        ssh_deploy = False
+        print >> sys.stderr, "[!] Error importing Paramiko library."
+        print >> sys.stderr, "[ ] Install it with <pip install paramiko>"
+        print >> sys.stderr, "[-] Disabling SSH rules deployment"
+        SSH_DEPLOY = False
 
+#############################################
+#       Latest SID
 print "[+] Getting SID"
-# get last SID
+# get last SID    
 try:
-    fhandle = open(out_file,"r")
-    
-    # read last not empty line
-    fhandle.seek(-2, 2)                # Jump to the second last byte.
-    last = ""
-    while last == "":
-        while fhandle.read(1) != "\n": # Get to beggining of the line
-            fhandle.seek(-2, 1)        # 
-        last = fhandle.readline()      # Read line.
-        last = last.strip()
-        if last[0] == "#":             # Empty line check
-            last = ""
-        if last == "":
-            f.seek(-2,1)               # Empty => loop
-    fhandle.close()
-
-    # get SID
-    pos = last.find("sid:")
-    if pos != -1:
-        last = last[pos+4:]
-        pos = last.find(";")
-        strsid = last[:pos].strip()
-        if strsid != "":
-            sid = int(strsid)
-            print "\t[-] <"+out_file+"> parsed, starting SID from "+str(sid)
-    else:
-        print "\t[!] <"+out_file+"> parsing error, exiting."
-        exit(1)
-except IOError:
+    with open(SID_LOG_FILE, "r") as f_sid_log_file:
+        line = f_sid_log_file.readline()
+        sid = int(line)
+except:
     sid = 1510000
-    print "\t[-] <"+out_file+"> not found, starting SID from 1510000"
+    print >> sys.stderr, "[-] <%s> not found, starting SID from 1510000"%SID_LOG_FILE
 
+#############################################
+#       Generating Rules
+rules = ""
+sid += 1
 print "[+] Generating rules"
-# get data
 try:
-    fhandle = open(in_file,"r")
-    fdata = fhandle.read()
-    fhandle.close()
-except IOError:
-    print "\t[!] Cannot read <"+in_file+">"
-    exit(1)
+    with open(IN_FILE, "r") as f_domains:
+        rules = ""
+        for fqdn in f_domains:
+            pos = fqdn.find("#")
+            if pos != -1:
+                fqdn = fqdn[:pos]
+            
+            fqdn = fqdn.strip()
+            
+            if fqdn == "":
+                continue
+            try:
+                ip_addr = socket.gethostbyname(fqdn)
+            except:
+                ip_addr = None
 
-rulez = ""
-flines = fdata.split("\n")
-for fqdn in flines:
-    pos = fqdn.find("#")
-    if pos != -1:
-        fqdn = fqdn[:pos]
-    
-    fqdn = fqdn.strip()
-    
-    if fqdn == "":
-        continue
-    try:
-        ip_addr = socket.gethostbyname(fqdn)
-    except:
-        ip_addr = None
+            if ip_addr != None:
+                print "[ ] "+fqdn+" :: "+ip_addr
+                rules += 'alert udp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign UDP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
+                sid += 1
+                rules += 'alert tcp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign TCP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
+                sid += 1
+            else:
+                print >> sys.stderr, "[-] %s :: ip address not resolved"%fqdn
+            
+            members = fqdn.split(".")
+            dns_request = ""
+            for m in members:
+                dns_request = dns_request+"|"+str(len(m))+"|"+m
+            rules += 'alert udp $HOME_NET any -> any 53 (msg:"SPAM Campaign DNS REQUEST FOR '+fqdn+' UDP"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"'+dns_request+'"; fast_pattern:only; nocase; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)"\n'
+            sid += 1
+except:
+    print >> sys.stderr, "[!] Cannot read <%s>"%IN_FILE
+    sys.exit(1)
 
-    if ip_addr != None:
-        print "\t[-] "+fqdn+" :: "+ip_addr
-        rulez = rulez+'alert udp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign UDP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
-        sid = sid+1
-        rulez = rulez+'alert tcp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign TCP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
-        sid = sid+1
-    else:
-        print "\t[-] "+fqdn+" :: ip address not resolved"
-    
-    members = fqdn.split(".")
-    dns_request = ""
-    for m in members:
-        dns_request = dns_request+"|"+str(len(m))+"|"+m
-    rulez = rulez+'alert udp $HOME_NET any -> any 53 (msg:"SPAM Campaign DNS REQUEST FOR '+fqdn+' UDP"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"'+dns_request+'"; fast_pattern:only; nocase; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)"\n'
-    sid = sid+1
-
+#############################################
+#       Writing Rules
 print "[+] Writing file"
 try:
-    fhandle = open(out_file,"a")
-    fhandle.write(rulez)
-    fhandle.close()
-    print "\t[-] File written"
-except IOError:
-    print "\t[!] Cannot write <"+out_file+">"
-    exit(1)
+    with open(OUT_FILE, "a") as f_rules:
+        f_rules.write(rules)
+    print "[ ] File written"
+except:
+    print "[!] Cannot write <%s>"%OUT_FILE
+    sys.exit(1)
 
-if ssh_deploy:
+if SSH_DEPLOY:
     print "[+] SSH deployment"
-    for server in ssh_serverz:
-        ssh_server = server[0]
-        ssh_port = server[1]
-        ssh_user = server[2]
-        ssh_password = server[3]
-        ssh_remote_path = server[4]+"/"+os.path.basename(out_file)
+    for server in SSH_SERVERS:
+        ssh_server      = server[0]
+        ssh_port        = server[1]
+        ssh_user        = server[2]
+        ssh_password    = server[3]
+        ssh_remote_path = os.path.join(server[4], os.path.basename(OUT_FILE))
         try:
             client = paramiko.SSHClient()
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             client.connect(ssh_server, ssh_port, ssh_user, ssh_password)
             sftp = paramiko.SFTPClient.from_transport(client.get_transport())
-            sftp.put(out_file,ssh_remote_path)
+            sftp.put(OUT_FILE, ssh_remote_path)
             sftp.close()
             client.close()
-            print "\t[-] Rules dispatched on <"+ssh_server+">"
+            print "[ ] Rules dispatched on <%s>"%ssh_server
         except Exception,e:
-            print "\t[!] Rule dispatching error on <"+ssh_server+">: %s" %e
+            print "[!] Rule dispatching error on <%s>: %s" %(ssh_server, e)
 
-print "[+] Finished"
+#############################################
+#       Logging max sid
+print "[+] Writing Last SID"
+with open(SID_LOG_FILE, "w") as f_sid:
+    f_sid.write("%d"%(sid-1))
+
+print "[+] Finished!"
