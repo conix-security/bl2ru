@@ -1,0 +1,16 @@
+# -*- coding: utf-8 -*-
+
+# Files
+OUT_FILE     = "blacklisted-domains.rules"       # rules file
+IN_FILE      = "blacklist.txt"                   # blacklist file
+SID_LOG_FILE = ".sid_log_file"
+
+# SSH
+SSH_DEPLOY  = True
+SSH_SERVERS = ()
+# Format for the ssh servers is :
+# SSH_SERVERS = (("Hostname or IP", port, "username", "password", "directory in which put the rules"),
+#				 ("Hostname or IP", port, "username", "password", "directory in which put the rules"))
+##Example:
+# SSH_SERVERS = (("127.0.0.1",22,"null","PASSWORD","/home/null/"),
+#				 ("127.0.0.1",22,"null","PASSWORD","/tmp/"))

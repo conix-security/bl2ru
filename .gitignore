@@ -1,0 +1,5 @@
+*.txt
+*.rules
+*.rule
+*.pyc
+conf.py
