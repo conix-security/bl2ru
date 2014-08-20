@@ -109,7 +109,7 @@ try:
             dns_request = ""
             for m in members:
                 dns_request = dns_request+"|"+str(len(m))+"|"+m
-            rules += 'alert udp $HOME_NET any -> any 53 (msg:"SPAM Campaign DNS REQUEST FOR '+fqdn+' UDP"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"'+dns_request+'"; fast_pattern:only; nocase; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)"\n'
+            rules += 'alert udp $HOME_NET any -> any 53 (msg:"SPAM Campaign DNS REQUEST FOR '+fqdn+' UDP"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"'+dns_request+'"; fast_pattern:only; nocase; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
             sid += 1
 except:
     print >> sys.stderr, "[!] Cannot read <%s>"%IN_FILE
