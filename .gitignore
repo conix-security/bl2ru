@@ -3,3 +3,5 @@
 *.rule
 *.pyc
 conf.py
+.sid_log_file
+
