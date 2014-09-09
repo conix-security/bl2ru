@@ -48,6 +48,10 @@ try:
 except:
     SID_LOG_FILE = ".sid_log_file"
 try:
+    RULE_TAG = conf.RULE_TAG
+except:
+    RULE_TAG = "CORPORATE"
+try:
     SSH_DEPLOY = conf.SSH_DEPLOY
 except:
     SSH_DEPLOY = False
@@ -111,10 +115,10 @@ try:
             # Generate the Suricata rules.
             # The function returns the new available SID and an array containing
             # the new Suricata rules.
-            (rules, sid) = gen.suricata_rule(value, sid, name, ref_url, vtype)
+            (rules, sid) = gen.suricata_rule(value, sid, name, ref_url, vtype, RULE_TAG)
             suricata_rules += "\n".join(rules) + "\n"
 
-            rules = gen.blacklist_sql(value, name, vtype)
+            rules = gen.blacklist_sql(value, name, vtype, RULE_TAG)
             blacklist_sql += rules + "\n"
 except Exception, e:
     print >> sys.stderr, "[!] Cannot read <%s>"%IN_FILE
