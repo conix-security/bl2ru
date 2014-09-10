@@ -42,7 +42,18 @@ def suricata_rule(value, sid, name="", ref_url="", vtype="DOMAIN", rule_tag=""):
 		sid += 1
 
 	elif vtype == "URL":
-		rules.append('alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"%s%s - Related URL (%s)"; content:"%s"; http_uri; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, name, value, value, sid, reference))
+		uri = value.split("?")[0]
+		uri_params = "?".join(value.split("?")[1:])		# If there are many "?" in the complete uri, everything is put back together
+
+		if len(uri_params) > 0:
+			params = uri_params.split("&")
+			rule_content = 'content: "?%s="; http_uri; '%(params[0].split("=")[0])
+			for p in params[1:]:
+				rule_content +='content: "&%s="; http_uri; '%(p.split("=")[0])
+		else:
+			rule_content = ""
+
+		rules.append('alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"%s%s - Related URL (%s)"; content:"%s"; http_uri; %s sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, name, uri, uri, rule_content, sid, reference))
 		sid += 1
 
 	return rules, sid
@@ -53,6 +64,8 @@ def blacklist_sql(value, name, vtype="DOMAIN", rule_tag=""):
 		rule_tag = "%s - "%rule_tag
 	else:
 		rule_tag = ""
-		
-	query = "INSERT INTO domains.blacklist(name, domain_match, match_type) VALUES (\"%s%s\", \"%s\", \"%s\");"%(MySQLdb.escape_string(rule_tag), MySQLdb.escape_string(name), MySQLdb.escape_string(value), MySQLdb.escape_string(vtype))
+
+	uri = value.split("?")[0]
+
+	query = "INSERT INTO domains.blacklist(name, domain_match, match_type) VALUES (\"%s%s\", \"%s\", \"%s\");"%(MySQLdb.escape_string(rule_tag), MySQLdb.escape_string(name), MySQLdb.escape_string(uri), MySQLdb.escape_string(vtype))
 	return query
