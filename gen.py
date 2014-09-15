@@ -27,9 +27,9 @@ def suricata_rule(value, sid, name="", ref_url="", vtype="DOMAIN", rule_tag=""):
 
 		if ip_addr != None:
 			print "[ ] "+value+" :: "+ip_addr
-			rules.append('alert udp $HOME_NET any -> %s any (msg:"%s%s - UDP traffic to %s (%s)"; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, ip_addr, name, ip_addr, value, sid, reference))
+			rules.append('alert udp $HOME_NET any -> %s any (msg:"%s%s - UDP traffic to %s (%s)"; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(ip_addr, rule_tag, name, ip_addr, value, sid, reference))
 			sid += 1
-			rules.append('alert tcp $HOME_NET any -> %s any (msg:"%s%s - TCP traffic to %s (%s)"; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, ip_addr, name, ip_addr, value, sid, reference))
+			rules.append('alert tcp $HOME_NET any -> %s any (msg:"%s%s - TCP traffic to %s (%s)"; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(ip_addr, rule_tag, name, ip_addr, value, sid, reference))
 			sid += 1
 		else:
 			print >> sys.stderr, "[-] %s :: ip address cannot be resolved"%value
