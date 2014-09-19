@@ -20,10 +20,16 @@ def suricata_rule(value, sid, name="", ref_url="", vtype="DOMAIN", rule_tag=""):
 		rule_tag = ""
 
 	if vtype == "DOMAIN":
-		try:
-			ip_addr = socket.gethostbyname(value)
-		except:
-			ip_addr = None
+
+		is_ip = re.match("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", value)
+
+		if is_ip:
+			ip_addr = value
+		else:
+			try:
+				ip_addr = socket.gethostbyname(value)
+			except:
+				ip_addr = None
 
 		if ip_addr != None:
 			print "[ ] "+value+" :: "+ip_addr
@@ -34,12 +40,13 @@ def suricata_rule(value, sid, name="", ref_url="", vtype="DOMAIN", rule_tag=""):
 		else:
 			print >> sys.stderr, "[-] %s :: ip address cannot be resolved"%value
 
-		members = value.split(".")
-		dns_request = ""
-		for m in members:
-			dns_request += "|%0.2X|%s"%(len(m),m)
-		rules.append('alert udp $HOME_NET any -> any 53 (msg:"%s%s - DNS request for %s"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"%s"; fast_pattern:only; nocase; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, name, value, dns_request, sid, reference))
-		sid += 1
+		if not is_ip:
+			members = value.split(".")
+			dns_request = ""
+			for m in members:
+				dns_request += "|%0.2X|%s"%(len(m),m)
+			rules.append('alert udp $HOME_NET any -> any 53 (msg:"%s%s - DNS request for %s"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"%s"; fast_pattern:only; nocase; sid:%d; rev:1; classtype:trojan-activity; metadata:impact_flag red; %s)'%(rule_tag, name, value, dns_request, sid, reference))
+			sid += 1
 
 	elif vtype == "URL":
 		uri = value.split("?")[0]
