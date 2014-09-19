@@ -90,40 +90,35 @@ blacklist_sql  = ""
 sid += 1
 
 print "[+] Generating rules"
-try:
-    with open(IN_FILE, "r") as f_domains:
-        for line in f_domains:
-            line = line.strip()
-            if line == "" or line.startswith("#"):
-                rules.append(line)
-                continue
+with open(IN_FILE, "r") as f_domains:
+    for line in f_domains:
+        line = line.strip()
+        if line == "" or line.startswith("#"):
+            suricata_rules += line + "\n"
+            continue
 
-            # Cut the line to extract the different fields
-            (name, value, ref_url, junk) = line.split(';', 3)
-            name                         = name.strip()
-            value                        = value.strip()
-            ref_url                      = ref_url.strip()
-            
-            if value == "":
-                continue
+        # Cut the line to extract the different fields
+        (name, value, ref_url, junk) = line.split(';', 3)
+        name                         = name.strip()
+        value                        = value.strip()
+        ref_url                      = ref_url.strip()
+        
+        if value == "":
+            continue
 
-            if value.startswith("/"):
-                vtype = "URL"
-            else:
-                vtype = "DOMAIN"
+        if value.startswith("/"):
+            vtype = "URL"
+        else:
+            vtype = "DOMAIN"
 
-            # Generate the Suricata rules.
-            # The function returns the new available SID and an array containing
-            # the new Suricata rules.
-            (rules, sid) = gen.suricata_rule(value, sid, name, ref_url, vtype, RULE_TAG)
-            suricata_rules += "\n".join(rules) + "\n"
+        # Generate the Suricata rules.
+        # The function returns the new available SID and an array containing
+        # the new Suricata rules.
+        (rules, sid) = gen.suricata_rule(value, sid, name, ref_url, vtype, RULE_TAG)
+        suricata_rules += "\n".join(rules) + "\n"
 
-            rules = gen.blacklist_sql(value, name, vtype, RULE_TAG)
-            blacklist_sql += rules + "\n"
-except Exception, e:
-    print >> sys.stderr, "[!] Cannot read <%s>"%IN_FILE
-    print >> sys.stderr, e
-    sys.exit(1)
+        rules = gen.blacklist_sql(value, name, vtype, RULE_TAG)
+        blacklist_sql += rules + "\n"
 
 #############################################
 #       Writing Rules
