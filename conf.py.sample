@@ -2,8 +2,10 @@
 
 # Files
 OUT_FILE     = "blacklisted-domains.rules"       # rules file
+BCKLST_FILE  = "blacklist.sql"
 IN_FILE      = "blacklist.txt"                   # blacklist file
 SID_LOG_FILE = ".sid_log_file"
+RULE_TAG     = "CORPORATE"
 
 # SSH
 SSH_DEPLOY  = True

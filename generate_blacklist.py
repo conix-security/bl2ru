@@ -18,6 +18,7 @@
 import socket
 import os
 import sys
+import gen
 import os.path
 
 #############################################
@@ -35,6 +36,10 @@ try:
 except:
     OUT_FILE = "blacklisted-domains.rules"
 try:
+    BCKLST_FILE = conf.BCKLST_FILE
+except:
+    BCKLST_FILE = "blacklist.sql"
+try:
     IN_FILE = conf.IN_FILE
 except:
     IN_FILE = "blacklist.txt"
@@ -42,6 +47,10 @@ try:
     SID_LOG_FILE = conf.SID_LOG_FILE
 except:
     SID_LOG_FILE = ".sid_log_file"
+try:
+    RULE_TAG = conf.RULE_TAG
+except:
+    RULE_TAG = "CORPORATE"
 try:
     SSH_DEPLOY = conf.SSH_DEPLOY
 except:
@@ -76,54 +85,59 @@ except:
 
 #############################################
 #       Generating Rules
-rules = ""
+suricata_rules = ""
+blacklist_sql  = ""
 sid += 1
-print "[+] Generating rules"
-try:
-    with open(IN_FILE, "r") as f_domains:
-        rules = ""
-        for fqdn in f_domains:
-            pos = fqdn.find("#")
-            if pos != -1:
-                fqdn = fqdn[:pos]
-            
-            fqdn = fqdn.strip()
-            
-            if fqdn == "":
-                continue
-            try:
-                ip_addr = socket.gethostbyname(fqdn)
-            except:
-                ip_addr = None
 
-            if ip_addr != None:
-                print "[ ] "+fqdn+" :: "+ip_addr
-                rules += 'alert udp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign UDP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
-                sid += 1
-                rules += 'alert tcp $HOME_NET any -> '+ip_addr+' any (msg:"SPAM Campaign TCP Communication FOR '+ip_addr+' ('+fqdn+')"; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)\n'
-                sid += 1
-            else:
-                print >> sys.stderr, "[-] %s :: ip address not resolved"%fqdn
-            
-            members = fqdn.split(".")
-            dns_request = ""
-            for m in members:
-                dns_request = dns_request+"|"+str(len(m))+"|"+m
-            rules += 'alert udp $HOME_NET any -> any 53 (msg:"SPAM Campaign DNS REQUEST FOR '+fqdn+' UDP"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:20; offset: 2; content:"'+dns_request+'"; fast_pattern:only; nocase; classtype:trojan-activity; sid:'+str(sid)+'; rev:1; metadata:impact_flag red;)"\n'
-            sid += 1
-except:
-    print >> sys.stderr, "[!] Cannot read <%s>"%IN_FILE
-    sys.exit(1)
+print "[+] Generating rules"
+with open(IN_FILE, "r") as f_domains:
+    for line in f_domains:
+        line = line.strip()
+        if line == "" or line.startswith("#"):
+            suricata_rules += line + "\n"
+            continue
+
+        # Cut the line to extract the different fields
+        (name, value, ref_url, junk) = line.split(';', 3)
+        name                         = name.strip()
+        value                        = value.strip()
+        ref_url                      = ref_url.strip()
+        
+        if value == "":
+            continue
+
+        if value.startswith("/"):
+            vtype = "URL"
+        else:
+            vtype = "DOMAIN"
+
+        # Generate the Suricata rules.
+        # The function returns the new available SID and an array containing
+        # the new Suricata rules.
+        (rules, sid) = gen.suricata_rule(value, sid, name, ref_url, vtype, RULE_TAG)
+        suricata_rules += "\n".join(rules) + "\n"
+
+        rules = gen.blacklist_sql(value, name, vtype, RULE_TAG)
+        blacklist_sql += rules + "\n"
 
 #############################################
 #       Writing Rules
-print "[+] Writing file"
+print "[+] Writing suricata file"
 try:
     with open(OUT_FILE, "a") as f_rules:
-        f_rules.write(rules)
+        f_rules.write(suricata_rules)
     print "[ ] File written"
 except:
     print "[!] Cannot write <%s>"%OUT_FILE
+    sys.exit(1)
+
+print "[+] Writing blacklist SQL file"
+try:
+    with open(BCKLST_FILE, "a") as f_rules:
+        f_rules.write(blacklist_sql)
+    print "[ ] File written"
+except:
+    print "[!] Cannot write <%s>"%BCKLST_FILE
     sys.exit(1)
 
 if SSH_DEPLOY:

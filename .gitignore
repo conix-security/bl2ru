@@ -3,3 +3,7 @@
 *.rule
 *.pyc
 conf.py
+.sid_log_file
+bl2ru.data
+blacklist.sql
+
