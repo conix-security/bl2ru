@@ -1,3 +1,6 @@
+Now depracated, you are looking for bl2ru2 : https://github.com/conix-security/bl2ru2
+
+
 bl2ru
 =====
 
